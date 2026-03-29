@@ -130,9 +130,10 @@ sensor:
     unit_of_measurement: "°F"
     state_class: measurement
     device_class: temperature
-    internal: true
     filters:
-    - lambda: return x * (9.0/5.0) + 32.0;
+      - lambda: |-
+          float fahrenheit =  (x * (9.0/5.0) + 32.0);
+          return fahrenheit + id(loft_temperature_offset).state;
     on_value:
       - lvgl.label.update:
           id: indoor_temp
@@ -146,7 +147,6 @@ sensor:
     accuracy_decimals: 2 
     unit_of_measurement: "inHg"
     device_class: atmospheric_pressure
-    internal: true
     on_value:
       - lvgl.label.update:
           id: home_pressure_display
@@ -218,7 +218,8 @@ sensor:
     unit_of_measurement: "%"
     state_class: measurement
     device_class: humidity
-    internal: true
+    filters:
+      - lambda: return x + id(loft_humidity_offset).state;
     on_value:
       - lvgl.label.update:
           id: indoor_humidity
@@ -238,7 +239,7 @@ sensor:
     id: Loft_VOC
   temperature: Loft_Temp # Temperature sensor name for compensation
   humidity: Loft_Humidity # Humidity sensor name for compensation
-  baseline: 0xBEC1
+  #baseline: 0xBEC1
   address: 0x5A
   update_interval: 60s
 #--------------------------------------
@@ -403,6 +404,22 @@ sensor:
             id: home_pressure_trend
             text: $trending_up
             text_color: 0xae00ff
+#--------------------------------------
+- platform: homeassistant
+  id: loft_leds_brightness
+  entity_id: light.loft_dimmer
+  attribute: brightness
+  unit_of_measurement: ""
+  state_class: measurement
+  internal: true
+  on_value:
+    - lvgl.label.update:
+        id: loft_leds_brightness_label
+        text:
+          format: "%.0f%%"
+          args: [ 'x/2.55' ]
+    - script.stop: show_loft_leds_brightness
+    - script.execute: show_loft_leds_brightness
 #-----------------------------------------------------------------------------
 text_sensor:
 - platform: wifi_info
@@ -995,6 +1012,46 @@ lvgl:
                   text_align: CENTER
                   outline_width: ${Outlines}
                   outline_color: 0xFF80FF
+#---------------------------------------------------
+    - id: loft_leds_light_page
+      bg_color: 0x000000
+      widgets:
+        - obj:
+            align: CENTER
+            width: 790
+            height: 370
+            bg_opa: TRANSP
+            border_opa: TRANSP
+            outline_width: ${Outlines}
+            outline_color: 0xFF0000
+            pad_all: 0
+            x: 0
+            y: 0
+            layout:
+              type: grid
+              grid_columns: [FR(1)]
+              grid_rows: [FR(40),FR(40),FR(20)]
+              pad_column: 0
+              pad_row: 0
+            widgets:
+              - label:
+                  id: loft_brightness_leds_header
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 0
+                  text: "Brightness"
+                  styles: page_label_style
+              - label:
+                  id: loft_leds_brightness_label
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 1
+                  text: "--%"
+                  styles: page_label_style
+              - label:
+                  id: lbl_loft_leds_brightness_id
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 2
+                  text: "Loft Lights"
+                  styles: header
 #---------------------------------------------------------------------------------------------------
 number:
   - platform: template
@@ -1006,6 +1063,30 @@ number:
     restore_value: true
     min_value: 0.0
     max_value: 1000
+    step: 0.1
+    mode: box
+#--------------------------------------------
+  - platform: template
+    name: Temperature Offest
+    optimistic: true
+    id: loft_temperature_offset
+    unit_of_measurement: "°F"
+    initial_value: 1
+    restore_value: true
+    min_value: -10.0
+    max_value: 10.0
+    step: 0.1
+    mode: box
+#--------------------------------------------
+  - platform: template
+    name: Humdity Offest
+    optimistic: true
+    id: loft_humidity_offset
+    unit_of_measurement: "%"
+    initial_value: 1
+    restore_value: true
+    min_value: -10.0
+    max_value: 10.0
     step: 0.1
     mode: box
 #--------------------------------------------
@@ -1055,4 +1136,12 @@ script:
     then:
       - delay: 10s
       - lvgl.page.show: main_page
+#----------------------------------------
+  - id: show_loft_leds_brightness
+    then:
+      - lvgl.page.show:
+          id: loft_leds_light_page
+      - delay: 10s
+      - lvgl.page.show:
+          id: main_page
 #---------------------------------------------------------------------------------------------------
